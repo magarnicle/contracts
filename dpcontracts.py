@@ -607,7 +607,6 @@ def condition(description, predicate, precondition=False, postcondition=False, i
 
                 if instance:
                     if not predicate(rargs):
-                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -621,7 +620,6 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                     else:
                         check = predicate(rargs, result)
                     if not check:
-                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -646,7 +644,6 @@ def condition(description, predicate, precondition=False, postcondition=False, i
 
                 if instance:
                     if not predicate(rargs):
-                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -660,7 +657,6 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                     else:
                         check = predicate(rargs, result)
                     if not check:
-                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -776,7 +772,6 @@ def ensure(arg1, arg2=None, arg3=None, arg4=None):
     predicate = lambda x: x
     errno = 0
     clean_up = None
-    import pudb; pu.db
 
     if isinstance(arg1, str):
         description = arg1
