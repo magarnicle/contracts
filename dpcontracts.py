@@ -510,6 +510,10 @@ if version_info[:2] < (3, 5):
 class PreconditionError(AssertionError):
     """An AssertionError raised due to violation of a precondition."""
 
+    @property
+    def errno(self):
+        return self.args[1]
+
 class PostconditionError(AssertionError):
     """An AssertionError raised due to violation of a postcondition."""
 
@@ -573,7 +577,8 @@ def arg_count(func):
     named, vargs, _, defs, kwonly, kwonlydefs, _ = getfullargspec(func)
     return len(named) + len(kwonly) + (1 if vargs else 0)
 
-def condition(description, predicate, precondition=False, postcondition=False, instance=False):
+def condition(description, predicate, precondition=False, postcondition=False, instance=False,
+        errno=0, clean_up=None):
     assert isinstance(description, str), "contract descriptions must be strings"
     assert len(description) > 0, "contracts must have nonempty descriptions"
     assert isfunction(predicate), "contract predicates must be functions"
@@ -593,7 +598,7 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                 rargs = build_call(f, *args, **kwargs) if not instance else args[0]
 
                 if precondition and not predicate(rargs):
-                    raise PreconditionError(description)
+                    raise PreconditionError(description, errno)
 
                 preserved_values = {}
                 for preserver in getattr(wrapped, "__contract_preserver__", [lambda x: {}]):
@@ -602,7 +607,12 @@ def condition(description, predicate, precondition=False, postcondition=False, i
 
                 if instance:
                     if not predicate(rargs):
-                        raise PostconditionError(description)
+                        if clean_up:
+                            try:
+                                clean_up(*args, **kwargs)
+                            except Exception as e:
+                                raise PostconditionError(f"{description}. Clean up failed: {e}", errno)
+                        raise PostconditionError(description, errno)
                 elif postcondition:
                     check = None
                     if arg_count(predicate) == 3:
@@ -610,7 +620,12 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                     else:
                         check = predicate(rargs, result)
                     if not check:
-                        raise PostconditionError(description)
+                        if clean_up:
+                            try:
+                                clean_up(*args, **kwargs)
+                            except Exception as e:
+                                raise PostconditionError(f"{description}. Clean up failed: {e}", errno)
+                        raise PostconditionError(description, errno)
 
                 return result
 
@@ -620,7 +635,7 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                 rargs = build_call(f, *args, **kwargs) if not instance else args[0]
 
                 if precondition and not predicate(rargs):
-                    raise PreconditionError(description)
+                    raise PreconditionError(description, errno)
 
                 preserved_values = {}
                 for preserver in getattr(wrapped, "__contract_preserver__", [lambda x: {}]):
@@ -629,7 +644,12 @@ def condition(description, predicate, precondition=False, postcondition=False, i
 
                 if instance:
                     if not predicate(rargs):
-                        raise PostconditionError(description)
+                        if clean_up:
+                            try:
+                                clean_up(*args, **kwargs)
+                            except Exception as e:
+                                raise PostconditionError(f"{description}. Clean up failed: {e}", errno)
+                        raise PostconditionError(description, errno)
                 elif postcondition:
                     check = None
                     if arg_count(predicate) == 3:
@@ -637,7 +657,12 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                     else:
                         check = predicate(rargs, result)
                     if not check:
-                        raise PostconditionError(description)
+                        if clean_up:
+                            try:
+                                clean_up(*args, **kwargs)
+                            except Exception as e:
+                                raise PostconditionError(f"{description}. Clean up failed: {e}", errno)
+                        raise PostconditionError(description, errno)
 
                 return result
 
@@ -648,25 +673,33 @@ def condition(description, predicate, precondition=False, postcondition=False, i
         return inner
     return require
 
-def require(arg1, arg2=None):
+def require(arg1, arg2=None, arg3=None):
     """
     Specify a precondition described by `description` and tested by
-    `predicate`.
+    `predicate`, raising an error `errno` on failure.
     """
 
-    assert (isinstance(arg1, str) and isfunction(arg2)) or (isfunction(arg1) and arg2 is None)
+    assert any([
+        (isinstance(arg1, str) and isfunction(arg2) and arg3 is None), # desc, pred
+        (isfunction(arg1) and arg2 is None and arg3 is None), # pred
+        (isfunction(arg1) and isinstance(arg2, int) and arg3 is None), # pred, errno
+        (isinstance(arg1, str) and isfunction(arg2) and isinstance(arg3, int)) # desc, pred, errno
+    ])
 
     description = ""
     predicate = lambda x: x
+    errno = 0
 
     if isinstance(arg1, str):
         description = arg1
         predicate = arg2
+        errno = errno or arg3
     else:
         description = get_function_source(arg1)
         predicate = arg1
+        errno = errno or arg2
 
-    return condition(description, predicate, True, False)
+    return condition(description, predicate, True, False, errno=errno)
 
 def rewrite(args, **kwargs):
     return args._replace(**kwargs)
@@ -718,25 +751,40 @@ def types(**requirements):
 
     return condition("the types of arguments must be valid", predicate, True)
 
-def ensure(arg1, arg2=None):
+def ensure(arg1, arg2=None, arg3=None, arg4=None):
     """
     Specify a precondition described by `description` and tested by
-    `predicate`.
+    `predicate`, raising an error with `errno` and calling `clean_up` on failure.
     """
 
-    assert (isinstance(arg1, str) and isfunction(arg2)) or (isfunction(arg1) and arg2 is None)
+    assert any([
+        (isinstance(arg1, str) and isfunction(arg2) and arg3 is None and arg4 is None), # desc, pred
+        (isfunction(arg1) and arg2 is None and arg3 is None and arg4 is None), # pred
+        (isfunction(arg1) and isinstance(arg2, int) and arg3 is None and arg4 is None), # pred, errno
+        (isinstance(arg1, str) and isfunction(arg2) and isinstance(arg3, int) and arg4 is None), # desc, pred, errno
+        (isinstance(arg1, str) and isfunction(arg2) and isfunction(arg3) and arg4 is None), # desc, pred, clean
+        (isfunction(arg1) and isfunction(arg2) and arg3 is None and arg4 is None), # pred, clean
+        (isfunction(arg1) and isinstance(arg2, int) and isfunction(arg3) and arg4 is None), # pred, errno, clean
+        (isinstance(arg1, str) and isfunction(arg2) and isinstance(arg3, int) and isfunction(arg4)), # desc, pred, errno, clean
+    ])
 
     description = ""
     predicate = lambda x: x
+    errno = 0
+    clean_up = None
 
     if isinstance(arg1, str):
         description = arg1
         predicate = arg2
+        errno = arg3 or errno
+        clean_up = arg4 or clean_up
     else:
         description = get_function_source(arg1)
         predicate = arg1
+        errno = arg2 or errno
+        clean_up = arg3 or clean_up
 
-    return condition(description, predicate, False, True)
+    return condition(description, predicate, False, True, errno=errno, clean_up=clean_up)
 
 def invariant(arg1, arg2=None):
     """
