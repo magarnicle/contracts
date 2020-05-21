@@ -607,6 +607,7 @@ def condition(description, predicate, precondition=False, postcondition=False, i
 
                 if instance:
                     if not predicate(rargs):
+                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -620,6 +621,7 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                     else:
                         check = predicate(rargs, result)
                     if not check:
+                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -644,6 +646,7 @@ def condition(description, predicate, precondition=False, postcondition=False, i
 
                 if instance:
                     if not predicate(rargs):
+                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -657,6 +660,7 @@ def condition(description, predicate, precondition=False, postcondition=False, i
                     else:
                         check = predicate(rargs, result)
                     if not check:
+                        import pudb; pu.db
                         if clean_up:
                             try:
                                 clean_up(*args, **kwargs)
@@ -772,17 +776,30 @@ def ensure(arg1, arg2=None, arg3=None, arg4=None):
     predicate = lambda x: x
     errno = 0
     clean_up = None
+    import pudb; pu.db
 
     if isinstance(arg1, str):
         description = arg1
         predicate = arg2
-        errno = arg3 or errno
-        clean_up = arg4 or clean_up
+        if isinstance(arg3, int):
+            errno = arg3
+            clean_up = arg4 or clean_up
+        elif isfunction(arg3):
+            clean_up = arg3
+        else:
+            errno = arg3 or errno
+            clean_up = arg4 or clean_up
     else:
         description = get_function_source(arg1)
         predicate = arg1
-        errno = arg2 or errno
-        clean_up = arg3 or clean_up
+        if isinstance(arg2, int):
+            errno = arg2
+            clean_up = arg3 or clean_up
+        elif isfunction(arg2):
+            clean_up = arg2
+        else:
+            errno = arg2 or errno
+            clean_up = arg3 or clean_up
 
     return condition(description, predicate, False, True, errno=errno, clean_up=clean_up)
 
