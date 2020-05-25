@@ -503,6 +503,7 @@ from collections import namedtuple
 from functools import wraps
 from inspect import isfunction, ismethod, iscoroutinefunction, getfullargspec, getsource
 from sys import version_info
+from enum import IntEnum
 
 if version_info[:2] < (3, 5):
     raise ImportError('dpcontracts >= 0.6 requires Python 3.5 or later.')
@@ -682,8 +683,8 @@ def require(arg1, arg2=None, arg3=None):
     assert any([
         (isinstance(arg1, str) and isfunction(arg2) and arg3 is None), # desc, pred
         (isfunction(arg1) and arg2 is None and arg3 is None), # pred
-        (isfunction(arg1) and isinstance(arg2, int) and arg3 is None), # pred, errno
-        (isinstance(arg1, str) and isfunction(arg2) and isinstance(arg3, int)) # desc, pred, errno
+        (isfunction(arg1) and isint(arg2) and arg3 is None), # pred, errno
+        (isinstance(arg1, str) and isfunction(arg2) and isint(arg3)) # desc, pred, errno
     ])
 
     description = ""
@@ -760,12 +761,12 @@ def ensure(arg1, arg2=None, arg3=None, arg4=None):
     assert any([
         (isinstance(arg1, str) and isfunction(arg2) and arg3 is None and arg4 is None), # desc, pred
         (isfunction(arg1) and arg2 is None and arg3 is None and arg4 is None), # pred
-        (isfunction(arg1) and isinstance(arg2, int) and arg3 is None and arg4 is None), # pred, errno
-        (isinstance(arg1, str) and isfunction(arg2) and isinstance(arg3, int) and arg4 is None), # desc, pred, errno
+        (isfunction(arg1) and isint(arg2) and arg3 is None and arg4 is None), # pred, errno
+        (isinstance(arg1, str) and isfunction(arg2) and isint(arg3) and arg4 is None), # desc, pred, errno
         (isinstance(arg1, str) and isfunction(arg2) and isfunction(arg3) and arg4 is None), # desc, pred, clean
         (isfunction(arg1) and isfunction(arg2) and arg3 is None and arg4 is None), # pred, clean
-        (isfunction(arg1) and isinstance(arg2, int) and isfunction(arg3) and arg4 is None), # pred, errno, clean
-        (isinstance(arg1, str) and isfunction(arg2) and isinstance(arg3, int) and isfunction(arg4)), # desc, pred, errno, clean
+        (isfunction(arg1) and isint(arg2) and isfunction(arg3) and arg4 is None), # pred, errno, clean
+        (isinstance(arg1, str) and isfunction(arg2) and isint(arg3) and isfunction(arg4)), # desc, pred, errno, clean
     ])
 
     description = ""
@@ -776,7 +777,7 @@ def ensure(arg1, arg2=None, arg3=None, arg4=None):
     if isinstance(arg1, str):
         description = arg1
         predicate = arg2
-        if isinstance(arg3, int):
+        if isint(arg3):
             errno = arg3
             clean_up = arg4 or clean_up
         elif isfunction(arg3):
@@ -787,7 +788,7 @@ def ensure(arg1, arg2=None, arg3=None, arg4=None):
     else:
         description = get_function_source(arg1)
         predicate = arg1
-        if isinstance(arg2, int):
+        if isint(arg2):
             errno = arg2
             clean_up = arg3 or clean_up
         elif isfunction(arg2):
@@ -840,13 +841,16 @@ def invariant(arg1, arg2=None):
         return InvariantContractor
     return invariant
 
+def isint(value):
+    return isinstance(value, int) or isinstance(value, IntEnum)
+
 if not __debug__:
-    def require(description, predicate):
+    def require(description, predicate, errno):
         def func(f):
             return f
         return func
 
-    def ensure(description, predicate):
+    def ensure(description, predicate, errno, clean_up):
         def func(f):
             return f
         return func
