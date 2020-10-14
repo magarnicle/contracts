@@ -513,10 +513,21 @@ class PreconditionError(AssertionError):
 
     @property
     def errno(self):
-        return self.args[1]
+        try:
+            return self.args[1]
+        except IndexError:
+            return -1
 
 class PostconditionError(AssertionError):
     """An AssertionError raised due to violation of a postcondition."""
+
+    @property
+    def errno(self):
+        try:
+            return self.args[1]
+        except IndexError:
+            return -1
+
 
 def get_function_source(func):
     try:
@@ -845,12 +856,12 @@ def isint(value):
     return isinstance(value, int) or isinstance(value, IntEnum)
 
 if not __debug__:
-    def require(description, predicate, errno):
+    def require(description, predicate, errno=None):
         def func(f):
             return f
         return func
 
-    def ensure(description, predicate, errno, clean_up):
+    def ensure(description, predicate, errno=None, clean_up=None):
         def func(f):
             return f
         return func
